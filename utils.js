@@ -249,25 +249,25 @@ const Utils = {
         );
         
         // D/E 배치에 최소 2명 필요한데 부족한 경우
-        if (availableAfterStrict.length < 2) {
-            console.log(`${day}일: 엄격한 연속근무 제한 시 D/E 인력 부족 (${availableAfterStrict.length}명), 유연 적용`);
+        // if (availableAfterStrict.length < 2) {
+        //     console.log(`${day}일: 엄격한 연속근무 제한 시 D/E 인력 부족 (${availableAfterStrict.length}명), 유연 적용`);
             
-            // 2차: 유연한 제한 적용 (1일 연장 허용)
-            const flexibleOffPeople = this.getPeopleNeedingMandatoryOff(schedule, day, true);
+        //     // 2차: 유연한 제한 적용 (1일 연장 허용)
+        //     const flexibleOffPeople = this.getPeopleNeedingMandatoryOff(schedule, day, true);
             
-            flexibleOffPeople.forEach(person => {
-                schedule[day][person] = 'O';
-            });
+        //     flexibleOffPeople.forEach(person => {
+        //         schedule[day][person] = 'O';
+        //     });
             
-            return flexibleOffPeople;
-        } else {
+        //     return flexibleOffPeople;
+        // } else {
             // 충분한 인력이 있으면 엄격하게 적용
             strictOffPeople.forEach(person => {
                 schedule[day][person] = 'O';
             });
             
             return strictOffPeople;
-        }
+        // }
     },
 
     /**
