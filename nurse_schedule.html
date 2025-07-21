@@ -112,13 +112,9 @@
         
         <div class="constraints-info">
             <h3>제약 조건</h3>
-            <ul>
-                <li><strong>사람1</strong>: 3교대, 8/23-24 오프, 나이트 ≤6개, 오프 11개</li>
-                <li><strong>사람2</strong>: 3교대, 나이트 ≤6개, 오프 11개</li>
-                <li><strong>사람3</strong>: 나이트만, 8/2-3 오프, 나이트 14개</li>
-                <li><strong>공통</strong>: E 후 D 불가, 근무 4일 후 최소 1일 오프, N은 3일 연속</li>
-                <li><strong>24시간 커버리지</strong>: 매일 D-E-N 모두 배치</li>
-            </ul>
+            <div id="constraints-list">
+                <p>제약조건을 로드하는 중...</p>
+            </div>
         </div>
         
         <div class="controls">
@@ -131,27 +127,13 @@
         <div id="status" class="status" style="display: none;"></div>
         
         <div class="summary" id="summary" style="display: none;">
-            <div>
-                <h4>사람1</h4>
-                <p>D: <span id="p1-d">0</span>, E: <span id="p1-e">0</span>, N: <span id="p1-n">0</span>, O: <span id="p1-o">0</span></p>
-            </div>
-            <div>
-                <h4>사람2</h4>
-                <p>D: <span id="p2-d">0</span>, E: <span id="p2-e">0</span>, N: <span id="p2-n">0</span>, O: <span id="p2-o">0</span></p>
-            </div>
-            <div>
-                <h4>사람3</h4>
-                <p>D: <span id="p3-d">0</span>, E: <span id="p3-e">0</span>, N: <span id="p3-n">0</span>, O: <span id="p3-o">0</span></p>
-            </div>
+            <!-- 사람별 요약이 동적으로 생성됩니다 -->
         </div>
         
         <table class="schedule-table" id="scheduleTable">
             <thead>
-                <tr>
-                    <th>날짜</th>
-                    <th>사람1</th>
-                    <th>사람2</th>
-                    <th>사람3</th>
+                <tr id="table-header">
+                    <!-- 테이블 헤더가 동적으로 생성됩니다 -->
                 </tr>
             </thead>
             <tbody id="scheduleBody">
