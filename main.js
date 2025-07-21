@@ -8,7 +8,7 @@ function generateSchedule() {
     // 새로운 생성기 사용
     schedule = ScheduleGenerator.generate();
     
-    UIManager.showStatus('1단계 완료: 필수 오프 배치됨');
+    UIManager.showStatus('2단계 완료: 필수 오프 + 사람3 나이트 패턴 배치됨');
     UIManager.displaySchedule(schedule);
 }
 
