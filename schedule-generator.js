@@ -17,12 +17,9 @@ class ScheduleGenerator {
         schedule = ScheduleGenerator.assignNightSpecialistPattern(schedule);
         console.log('2단계 완료: 나이트 전담자 패턴 배치');
         
-        // 3단계: 24시간 커버리지 보장
-        schedule = ScheduleGenerator.assign24HourCoverage(schedule);
-        console.log('3단계 완료: 24시간 커버리지 보장');
-        
-        // TODO: 다음 단계들 추가 예정
-        // schedule = ScheduleGenerator.assignRemainingShifts(schedule);
+        // 3.1단계: 24시간 커버리지 + 연속근무 제한 (🆕 통합 버전)
+        schedule = ScheduleGenerator.assign24HourCoverageWithConsecutiveLimits(schedule);
+        console.log('3.1단계 완료: 24시간 커버리지 + 연속근무 제한');
         
         return schedule;
     }
@@ -90,8 +87,52 @@ class ScheduleGenerator {
     }
 
     /**
-     * 3단계: 24시간 커버리지 보장 (순수함수)
-     * 매일 D-E-N 근무가 모두 배치되도록 보장
+     * 🆕 3.1단계: 24시간 커버리지 + 연속근무 제한 (순수함수)
+     * 매일 D-E-N 근무가 모두 배치되도록 보장하면서 연속근무 제한도 적용
+     * @param {Object} inputSchedule - 입력 스케줄
+     * @returns {Object} 24시간 커버리지 + 연속근무 제한이 적용된 새로운 스케줄
+     */
+    static assign24HourCoverageWithConsecutiveLimits(inputSchedule) {
+        const schedule = Utils.deepCopy(inputSchedule);
+        
+        console.log('🔄 연속근무 제한을 고려한 24시간 커버리지 배치 시작...');
+        
+        for (let day = 1; day <= CONFIG.DAYS_IN_AUGUST; day++) {
+            // 1단계: 스마트한 연속근무 제한 적용 (24시간 커버리지 고려)
+            const forcedOffPeople = Utils.applyConsecutiveWorkLimitsSmartly(schedule, day);
+            if (forcedOffPeople.length > 0) {
+                console.log(`${day}일: 연속근무 제한으로 오프 배치 - ${forcedOffPeople.map(p => CONFIG.getPersonConfig(p).name).join(', ')}`);
+            }
+            
+            // 2단계: 나이트 전담자 오프일 처리
+            EnhancedCoverageHelpers.assignNightForSpecialistOffDays(schedule, day);
+            
+            // 3단계: D, E 근무 배치 (연속근무 제한 고려)
+            EnhancedCoverageHelpers.assignDayAndEveningShiftsWithLimits(schedule, day);
+            
+            // 4단계: 커버리지 부족 시 응급 배치
+            const coverageFixed = EnhancedCoverageHelpers.fixIncompleteCoverage(schedule, day);
+            if (coverageFixed) {
+                console.log(`${day}일: 커버리지 부족으로 응급 배치 수행`);
+            }
+            
+            // 디버깅: 해당 날짜의 커버리지 상태 체크
+            const dayShifts = Utils.getDayShifts(schedule, day);
+            const hasD = dayShifts.includes('D');
+            const hasE = dayShifts.includes('E');  
+            const hasN = dayShifts.includes('N');
+            
+            if (!hasD || !hasE || !hasN) {
+                console.warn(`⚠️ ${day}일 최종 커버리지 부족: D:${hasD}, E:${hasE}, N:${hasN}`);
+            }
+        }
+        
+        return schedule;
+    }
+
+    // 기존 3단계 함수는 레거시로 유지 (호환성)
+    /**
+     * 3단계: 24시간 커버리지 보장 (순수함수) - 레거시 버전
      * @param {Object} inputSchedule - 입력 스케줄
      * @returns {Object} 24시간 커버리지가 보장된 새로운 스케줄
      */
@@ -109,7 +150,369 @@ class ScheduleGenerator {
 }
 
 // ==============================================
-// 스케줄 생성기 헬퍼 함수들
+// 🆕 연속근무 제한을 고려한 커버리지 헬퍼 함수들
+// ==============================================
+const EnhancedCoverageHelpers = {
+    /**
+     * 나이트 전담자가 오프인 특정 날에 다른 사람을 나이트로 배치 (엄격한 규칙 적용)
+     * @param {Object} schedule - 스케줄 (변경됨)
+     * @param {number} day - 날짜
+     */
+    assignNightForSpecialistOffDays(schedule, day) {
+        // 나이트 전담자 찾기
+        let nightSpecialist = null;
+        for (let i = 0; i < CONFIG.PEOPLE.length; i++) {
+            const person = CONFIG.PEOPLE[i];
+            const config = CONFIG.getPersonConfig(person);
+            if (config.isNightSpecialist) {
+                nightSpecialist = person;
+                break;
+            }
+        }
+        
+        if (!nightSpecialist) return;
+        
+        // 나이트 전담자가 오프인 경우에만 처리
+        if (schedule[day][nightSpecialist] === 'O') {
+            const assigned = this.assignNightShiftWithStrictRules(schedule, day);
+            if (!assigned) {
+                console.warn(`${day}일: 나이트 근무자 배치 실패 (엄격한 나이트 규칙으로 인해)`);
+            }
+        }
+    },
+    
+    /**
+     * 🆕 연속근무 제한을 고려한 사용 가능한 사람들 반환 (나이트 규칙 강화)
+     * @param {Object} schedule - 스케줄
+     * @param {number} day - 날짜
+     * @param {string} shiftType - 근무 유형 (선택적)
+     * @returns {Array} 사용 가능한 사람들
+     */
+    getAvailablePeopleWithAllConstraints(schedule, day, shiftType = null) {
+        return CONFIG.PEOPLE.filter(person => {
+            // 이미 배치된 경우 제외
+            if (schedule[day][person] !== null) return false;
+            
+            // 연속근무 제한으로 오프해야 하는 경우 제외
+            if (Utils.needsMandatoryOff(schedule, person, day)) return false;
+            
+            // 🆕 나이트 후 의무 오프 기간인 경우 제외
+            if (Utils.isInNightOffPeriod(schedule, person, day)) return false;
+            
+            // 특정 근무 유형이 지정된 경우 해당 근무 가능한지 확인
+            if (shiftType && !CONFIG.canPersonDoShift(person, shiftType)) return false;
+            
+            return true;
+        });
+    },
+
+    /**
+     * 특정 날에 나이트 근무자 배치 (엄격한 나이트 규칙 적용)
+     * @param {Object} schedule - 스케줄
+     * @param {number} day - 날짜
+     * @returns {boolean} 배치 성공 여부
+     */
+    assignNightShiftWithStrictRules(schedule, day) {
+        // 이미 나이트가 배치된 경우 스킵
+        const dayShifts = Utils.getDayShifts(schedule, day);
+        if (dayShifts.includes('N')) return true;
+        
+        // 나이트 가능한 후보자들 (3일 패턴 고려)
+        const candidates = Utils.findNightCandidatesForDay(schedule, day);
+        
+        if (candidates.length === 0) return false;
+        
+        // 이미 나이트 근무 중인 사람이 있는지 확인
+        for (let i = 0; i < candidates.length; i++) {
+            const person = candidates[i];
+            if (schedule[day][person] === 'N') {
+                return true; // 이미 배치됨
+            }
+        }
+        
+        // 새로운 나이트 패턴 시작 가능한 사람 찾기
+        const newPatternCandidates = candidates.filter(person => 
+            schedule[day][person] === null && Utils.canStartNightShift(schedule, person, day)
+        );
+        
+        if (newPatternCandidates.length === 0) return false;
+        
+        // 최적의 후보자 선택하여 3일 패턴 배치
+        const selected = this.selectBestNightCandidateWithLimits(schedule, newPatternCandidates, day);
+        const success = Utils.assignNightPattern(schedule, selected, day);
+        
+        if (success) {
+            console.log(`🌙 ${day}일-${day+2}일: ${CONFIG.getPersonConfig(selected).name} 나이트 3일 패턴 배치`);
+        }
+        
+        return success;
+    },
+    
+    /**
+     * 특정 사람에게 특정 날에 나이트를 배치할 수 있는지 확인 (연속근무 제한 포함)
+     * @param {Object} schedule - 스케줄
+     * @param {string} person - 사람 ID
+     * @param {number} day - 날짜
+     * @returns {boolean} 배치 가능 여부
+     */
+    canAssignNightWithLimits(schedule, person, day) {
+        // 기본 체크: 이미 배치되었거나 나이트 불가능한 경우
+        if (schedule[day][person] !== null) return false;
+        if (!CONFIG.canPersonDoShift(person, 'N')) return false;
+        
+        // 연속근무 제한 체크
+        if (Utils.needsMandatoryOff(schedule, person, day)) return false;
+        
+        // 나이트 개수 제한 확인
+        const config = CONFIG.getPersonConfig(person);
+        const currentNights = Utils.countShifts(schedule, person, 'N');
+        if (currentNights >= config.maxNightShifts) return false;
+        
+        return true;
+    },
+    
+    /**
+     * 나이트 배치에 가장 적합한 후보자 선택 (연속근무 고려)
+     * @param {Object} schedule - 스케줄
+     * @param {Array} candidates - 후보자 배열
+     * @param {number} day - 날짜
+     * @returns {string} 선택된 사람 ID
+     */
+    selectBestNightCandidateWithLimits(schedule, candidates, day) {
+        let bestCandidate = candidates[0];
+        let bestScore = this.calculateCandidateScore(schedule, bestCandidate, day);
+        
+        for (let i = 1; i < candidates.length; i++) {
+            const candidate = candidates[i];
+            const score = this.calculateCandidateScore(schedule, candidate, day);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestCandidate = candidate;
+            }
+        }
+        
+        return bestCandidate;
+    },
+    
+    /**
+     * 후보자의 우선순위 점수 계산 (낮은 점수가 더 좋음)
+     * @param {Object} schedule - 스케줄
+     * @param {string} person - 사람 ID
+     * @param {number} day - 날짜
+     * @returns {number} 점수 (낮을수록 우선순위 높음)
+     */
+    calculateCandidateScore(schedule, person, day) {
+        let score = 0;
+        
+        // 1. 현재 나이트 개수 (적을수록 좋음)
+        const nightCount = Utils.countShifts(schedule, person, 'N');
+        score += nightCount * 10;
+        
+        // 2. 연속근무 일수 (적을수록 좋음)
+        const consecutiveDays = Utils.getConsecutiveWorkDays(schedule, person, day);
+        score += consecutiveDays * 5;
+        
+        // 3. 총 근무 일수 (적을수록 좋음)
+        const totalWork = CONFIG.SHIFTS.filter(s => s !== 'O').reduce((sum, shift) => {
+            return sum + Utils.countShifts(schedule, person, shift);
+        }, 0);
+        score += totalWork;
+        
+        return score;
+    },
+    
+    /**
+     * D, E 근무 배치 (모든 제약조건 고려)
+     * @param {Object} schedule - 스케줄 (변경됨)
+     * @param {number} day - 날짜
+     */
+    assignDayAndEveningShiftsWithLimits(schedule, day) {
+        // 모든 제약조건을 고려한 사용 가능한 D/E 근무자들
+        const availablePeople = this.getAvailablePeopleWithAllConstraints(schedule, day).filter(person =>
+            CONFIG.DAY_EVENING_WORKERS.includes(person)
+        );
+        
+        if (availablePeople.length === 0) {
+            console.warn(`${day}일: D/E 배치 가능한 사람이 없음 (모든 제약조건으로 인해)`);
+            return;
+        }
+        
+        // D, E 중 무엇이 필요한지 확인
+        const dayShifts = Utils.getDayShifts(schedule, day);
+        const needsD = !dayShifts.includes('D');
+        const needsE = !dayShifts.includes('E');
+        
+        if (needsD && needsE && availablePeople.length >= 2) {
+            // 둘 다 필요하고 두 명 이상 사용 가능
+            this.assignDAndEWithLimits(schedule, day, availablePeople.slice(0, 2));
+        } else if (needsD && availablePeople.length >= 1) {
+            // D만 필요
+            const candidate = this.selectBestDayCandidate(schedule, availablePeople, day);
+            if (candidate) schedule[day][candidate] = 'D';
+        } else if (needsE && availablePeople.length >= 1) {
+            // E만 필요
+            const candidate = this.selectBestEveningCandidate(schedule, availablePeople, day);
+            if (candidate) schedule[day][candidate] = 'E';
+        }
+    },
+    
+    /**
+     * 두 사람에게 D, E 배치 (연속근무 제한 고려)
+     * @param {Object} schedule - 스케줄
+     * @param {number} day - 날짜
+     * @param {Array} people - 사용 가능한 사람들 (2명)
+     */
+    assignDAndEWithLimits(schedule, day, people) {
+        const person1 = people[0];
+        const person2 = people[1];
+        
+        // 연속근무를 고려한 D/E 배치 우선순위
+        const person1ConsecutiveDays = Utils.getConsecutiveWorkDays(schedule, person1, day);
+        const person2ConsecutiveDays = Utils.getConsecutiveWorkDays(schedule, person2, day);
+        
+        // 연속근무가 적은 사람을 우선적으로 배치
+        if (person1ConsecutiveDays <= person2ConsecutiveDays) {
+            schedule[day][person1] = 'D';
+            schedule[day][person2] = 'E';
+        } else {
+            schedule[day][person1] = 'E';
+            schedule[day][person2] = 'D';
+        }
+    },
+    
+    /**
+     * 데이 근무에 가장 적합한 후보자 선택
+     * @param {Object} schedule - 스케줄
+     * @param {Array} candidates - 후보자 배열
+     * @param {number} day - 날짜
+     * @returns {string|null} 선택된 사람 ID
+     */
+    selectBestDayCandidate(schedule, candidates, day) {
+        // 연속근무가 적은 사람 우선 선택
+        let bestCandidate = candidates[0];
+        let minConsecutive = Utils.getConsecutiveWorkDays(schedule, bestCandidate, day);
+        
+        for (let i = 1; i < candidates.length; i++) {
+            const candidate = candidates[i];
+            const consecutive = Utils.getConsecutiveWorkDays(schedule, candidate, day);
+            
+            if (consecutive < minConsecutive) {
+                minConsecutive = consecutive;
+                bestCandidate = candidate;
+            }
+        }
+        
+        return bestCandidate;
+    },
+    
+    /**
+     * 이브닝 근무에 가장 적합한 후보자 선택
+     * @param {Object} schedule - 스케줄
+     * @param {Array} candidates - 후보자 배열
+     * @param {number} day - 날짜
+     * @returns {string|null} 선택된 사람 ID
+     */
+    selectBestEveningCandidate(schedule, candidates, day) {
+        // 연속근무가 적은 사람 우선 선택
+        return this.selectBestDayCandidate(schedule, candidates, day);
+    },
+
+    /**
+     * 🆕 불완전한 커버리지 응급 처리
+     * @param {Object} schedule - 스케줄 (변경됨)
+     * @param {number} day - 날짜
+     * @returns {boolean} 수정 여부
+     */
+    fixIncompleteCoverage(schedule, day) {
+        const dayShifts = Utils.getDayShifts(schedule, day);
+        const hasD = dayShifts.includes('D');
+        const hasE = dayShifts.includes('E');
+        const hasN = dayShifts.includes('N');
+        
+        let fixed = false;
+        
+        // 1. 나이트가 없는 경우 (가장 심각)
+        if (!hasN) {
+            fixed = this.emergencyAssignNight(schedule, day) || fixed;
+        }
+        
+        // 2. D나 E가 없는 경우
+        if (!hasD || !hasE) {
+            fixed = this.emergencyAssignDayEvening(schedule, day) || fixed;
+        }
+        
+        return fixed;
+    },
+
+    /**
+     * 응급 나이트 배치 (엄격한 나이트 규칙 적용)
+     * @param {Object} schedule - 스케줄 (변경됨)
+     * @param {number} day - 날짜
+     * @returns {boolean} 배치 성공 여부
+     */
+    emergencyAssignNight(schedule, day) {
+        // 엄격한 나이트 규칙을 적용한 응급 배치
+        const success = this.assignNightShiftWithStrictRules(schedule, day);
+        
+        if (success) {
+            console.log(`⚡ ${day}일 응급 나이트 배치 (3일 패턴 보장)`);
+        } else {
+            console.warn(`💥 ${day}일 나이트 배치 완전 실패 - 3일 패턴 불가능`);
+        }
+        
+        return success;
+    },
+
+    /**
+     * 응급 D/E 배치 (연속근무 제한 완화)
+     * @param {Object} schedule - 스케줄 (변경됨)
+     * @param {number} day - 날짜
+     * @returns {boolean} 배치 성공 여부
+     */
+    emergencyAssignDayEvening(schedule, day) {
+        const dayShifts = Utils.getDayShifts(schedule, day);
+        const needsD = !dayShifts.includes('D');
+        const needsE = !dayShifts.includes('E');
+        
+        // 오프가 아닌 모든 D/E 가능자 중에서 선택 (연속근무 제한 무시)
+        const emergencyCandidates = [];
+        
+        for (let i = 0; i < CONFIG.DAY_EVENING_WORKERS.length; i++) {
+            const person = CONFIG.DAY_EVENING_WORKERS[i];
+            if (schedule[day][person] === null) {
+                emergencyCandidates.push(person);
+            }
+        }
+        
+        if (emergencyCandidates.length === 0) return false;
+        
+        let fixed = false;
+        
+        if (needsD && needsE && emergencyCandidates.length >= 2) {
+            // 둘 다 필요하고 2명 이상 가능
+            schedule[day][emergencyCandidates[0]] = 'D';
+            schedule[day][emergencyCandidates[1]] = 'E';
+            console.log(`⚡ ${day}일 응급 D/E 배치: ${CONFIG.getPersonConfig(emergencyCandidates[0]).name}(D), ${CONFIG.getPersonConfig(emergencyCandidates[1]).name}(E)`);
+            fixed = true;
+        } else if (needsD && emergencyCandidates.length >= 1) {
+            // D만 필요
+            schedule[day][emergencyCandidates[0]] = 'D';
+            console.log(`⚡ ${day}일 응급 D 배치: ${CONFIG.getPersonConfig(emergencyCandidates[0]).name}`);
+            fixed = true;
+        } else if (needsE && emergencyCandidates.length >= 1) {
+            // E만 필요
+            schedule[day][emergencyCandidates[0]] = 'E';
+            console.log(`⚡ ${day}일 응급 E 배치: ${CONFIG.getPersonConfig(emergencyCandidates[0]).name}`);
+            fixed = true;
+        }
+        
+        return fixed;
+    }
+};
+
+// ==============================================
+// 스케줄 생성기 헬퍼 함수들 (기존)
 // ==============================================
 const ScheduleGeneratorHelpers = {
     /**
@@ -286,7 +689,7 @@ const ScheduleGeneratorHelpers = {
 };
 
 // ==============================================
-// 24시간 커버리지 헬퍼 함수들
+// 24시간 커버리지 헬퍼 함수들 (기존 - 레거시)
 // ==============================================
 const CoverageHelpers = {
     /**
