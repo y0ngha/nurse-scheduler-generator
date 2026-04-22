@@ -18,13 +18,16 @@ export function validateNightBlocks(schedule: MonthlySchedule, config: Scheduler
           }
 
           if (sequenceLength !== config.nightBlockLength) {
-            issues.push({
-              severity: 'error',
-              code: 'NIGHT_BLOCK_VIOLATION',
-              message: `${nurse.name} has an invalid night block length of ${sequenceLength} starting on day ${day}`,
-              nurseId: nurse.id,
-              day,
-            });
+            // Only report if it's not truncated by the end of the month
+            if (currentDay <= days) {
+              issues.push({
+                severity: 'error',
+                code: 'NIGHT_BLOCK_VIOLATION',
+                message: `${nurse.name} has an invalid night block length of ${sequenceLength} starting on day ${day}`,
+                nurseId: nurse.id,
+                day,
+              });
+            }
           }
           // Skip the rest of this sequence
           day = currentDay - 1;

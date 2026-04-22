@@ -15,20 +15,19 @@ export function buildNightSpecialistBlocks(schedule: MonthlySchedule, config: Sc
   const days = Object.keys(next).length;
 
   for (let start = 1; start <= days && placedNights < target; start += 1) {
-    const blockDays = [start, start + 1, start + 2];
+    const blockDays = [start, start + 1, start + 2].filter(d => d <= days);
     const recoveryDays = [
       start + 3,
       start + 4,
       start + 5,
-    ].slice(0, specialist.nightRecoveryOffDays);
+    ].slice(0, specialist.nightRecoveryOffDays).filter(d => d <= days);
 
-    const fits = blockDays.every((day) => day <= days);
     const mandatoryCollision = blockDays.some((day) => specialist.mandatoryOffDates.includes(day));
     const assignmentCollision = blockDays.some(
       (day) => next[day][specialist.id] !== null && next[day][specialist.id] !== 'O'
     );
 
-    if (!fits || mandatoryCollision || assignmentCollision) {
+    if (blockDays.length === 0 || mandatoryCollision || assignmentCollision) {
       continue;
     }
 
@@ -38,13 +37,11 @@ export function buildNightSpecialistBlocks(schedule: MonthlySchedule, config: Sc
     });
 
     recoveryDays.forEach((day) => {
-      if (day <= days) {
-        if (next[day][specialist.id] === null) next[day][specialist.id] = 'O';
-      }
+      if (next[day][specialist.id] === null) next[day][specialist.id] = 'O';
     });
     
     // Jump forward to avoid overlapping blocks
-    start += blockDays.length + recoveryDays.length - 1;
+    start += (blockDays.length + recoveryDays.length) - 1;
   }
 
   for (const day of specialist.mandatoryOffDates) {

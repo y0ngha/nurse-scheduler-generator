@@ -18,13 +18,20 @@ export function buildReplacementNightBlocks(schedule: MonthlySchedule, config: S
     const candidates = config.nurses
       .filter((nurse) => nurse.nurseType === 'general' && nurse.allowedShifts.includes('N'))
       .filter((nurse) => {
-        const blockDays = Array.from({ length: config.nightBlockLength }, (_, i) => day + i);
-        const recoveryDays = Array.from({ length: nurse.nightRecoveryOffDays }, (_, i) => day + config.nightBlockLength + i);
-        const allDays = [...blockDays, ...recoveryDays];
+        // Check current night count
+        let currentNights = 0;
+        for (const assignments of Object.values(next)) {
+          if (assignments[nurse.id] === 'N') currentNights += 1;
+        }
+        if (currentNights + config.nightBlockLength > nurse.maxNightShifts) {
+          return false;
+        }
 
-        return blockDays.every((d) => d <= days) &&
-          blockDays.every((d) => next[d][nurse.id] === null) &&
-          recoveryDays.every((d) => d > days || next[d][nurse.id] === null || next[d][nurse.id] === 'O') &&
+        const blockDays = Array.from({ length: config.nightBlockLength }, (_, i) => day + i).filter(d => d <= days);
+        const recoveryDays = Array.from({ length: nurse.nightRecoveryOffDays }, (_, i) => day + config.nightBlockLength + i).filter(d => d <= days);
+
+        return blockDays.every((d) => next[d][nurse.id] === null) &&
+          recoveryDays.every((d) => next[d][nurse.id] === null || next[d][nurse.id] === 'O') &&
           !blockDays.some((d) => nurse.mandatoryOffDates.includes(d));
       })
       .sort((a, b) => a.maxNightShifts - b.maxNightShifts);
@@ -48,14 +55,12 @@ export function buildReplacementNightBlocks(schedule: MonthlySchedule, config: S
       };
     }
 
-    Array.from({ length: config.nightBlockLength }, (_, i) => day + i).forEach((d) => {
+    Array.from({ length: config.nightBlockLength }, (_, i) => day + i).filter(d => d <= days).forEach((d) => {
       next[d][candidate.id] = 'N';
     });
 
-    Array.from({ length: candidate.nightRecoveryOffDays }, (_, i) => day + config.nightBlockLength + i).forEach((d) => {
-      if (d <= days) {
-        if (next[d][candidate.id] === null) next[d][candidate.id] = 'O';
-      }
+    Array.from({ length: candidate.nightRecoveryOffDays }, (_, i) => day + config.nightBlockLength + i).filter(d => d <= days).forEach((d) => {
+      if (next[d][candidate.id] === null) next[d][candidate.id] = 'O';
     });
     
     // Jump forward after placing a block
