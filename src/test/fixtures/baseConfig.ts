@@ -1,0 +1,52 @@
+// src/test/fixtures/baseConfig.ts
+import type { SchedulerConfig } from '../../domain/types';
+
+export const baseConfig: SchedulerConfig = {
+  year: 2026,
+  month: 8,
+  maxConsecutiveWorkDays: 4,
+  nightBlockLength: 3,
+  forbidEveningToNextDay: true,
+  nurses: [
+    {
+      id: 'n1',
+      name: 'Nurse 1',
+      nurseType: 'general',
+      allowedShifts: ['D', 'E', 'N', 'O'],
+      mandatoryOffDates: [23, 24],
+      maxNightShifts: 6,
+      offRange: { min: 9, max: 11 },
+      nightRecoveryOffDays: 2,
+    },
+    {
+      id: 'n2',
+      name: 'Nurse 2',
+      nurseType: 'general',
+      allowedShifts: ['D', 'E', 'N', 'O'],
+      mandatoryOffDates: [],
+      maxNightShifts: 6,
+      offRange: { min: 9, max: 11 },
+      nightRecoveryOffDays: 2,
+    },
+    {
+      id: 'n3',
+      name: 'Nurse 3',
+      nurseType: 'nightSpecialist',
+      allowedShifts: ['N', 'O'],
+      mandatoryOffDates: [2, 3],
+      maxNightShifts: 16,
+      offRange: null,
+      nightRecoveryOffDays: 3,
+    },
+    {
+      id: 'n4',
+      name: 'Nurse 4',
+      nurseType: 'general',
+      allowedShifts: ['D', 'E', 'N', 'O'],
+      mandatoryOffDates: [],
+      maxNightShifts: 6,
+      offRange: { min: 9, max: 11 },
+      nightRecoveryOffDays: 2,
+    },
+  ],
+};
