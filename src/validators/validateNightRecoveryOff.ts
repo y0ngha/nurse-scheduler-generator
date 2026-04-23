@@ -6,16 +6,14 @@ export function validateNightRecoveryOff(schedule: MonthlySchedule, config: Sche
   const days = Object.keys(schedule).length;
 
   for (const nurse of config.nurses) {
+    if (nurse.id === 'HELPER') continue;
     for (let day = 1; day <= days; day += 1) {
       if (schedule[day][nurse.id] === 'N') {
-        // Find end of night block
         let currentDay = day;
         while (currentDay <= days && schedule[currentDay][nurse.id] === 'N') {
           currentDay += 1;
         }
         const blockEnd = currentDay - 1;
-        
-        // Check recovery off days
         const recoveryDaysNeeded = nurse.nightRecoveryOffDays;
         for (let r = 1; r <= recoveryDaysNeeded; r += 1) {
           const recoveryDay = blockEnd + r;
@@ -24,14 +22,13 @@ export function validateNightRecoveryOff(schedule: MonthlySchedule, config: Sche
               issues.push({
                 severity: 'error',
                 code: 'NIGHT_RECOVERY_OFF_VIOLATION',
-                message: `${nurse.name} must be off for recovery on day ${recoveryDay} after night block ending on day ${blockEnd}`,
+                message: `${nurse.name} 간호사는 밤번(N) 근무 후 최소 ${recoveryDaysNeeded}일의 회복 휴식이 필요합니다.`,
                 nurseId: nurse.id,
                 day: recoveryDay,
               });
             }
           }
         }
-        // Skip the block we just processed
         day = blockEnd;
       }
     }

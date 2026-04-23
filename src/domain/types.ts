@@ -1,12 +1,7 @@
-export type ShiftCode = 'D' | 'E' | 'N' | 'O';
+export type ShiftCode = 'D' | 'E' | 'N' | 'O' | 'DE';
 export type NurseType = 'general' | 'nightSpecialist';
 export type NurseId = string;
 export type DayOfMonth = number;
-
-export interface OffRange {
-  min: number;
-  max: number;
-}
 
 export interface NurseConfig {
   id: NurseId;
@@ -15,9 +10,11 @@ export interface NurseConfig {
   allowedShifts: ShiftCode[];
   mandatoryOffDates: number[];
   maxNightShifts: number;
-  offRange: OffRange | null;
+  minOffDays: number | null;
   nightRecoveryOffDays: number;
 }
+
+export interface OffRange { min: number; max: number; }
 
 export interface SchedulerConfig {
   year: number;
@@ -26,13 +23,13 @@ export interface SchedulerConfig {
   maxConsecutiveWorkDays: number;
   nightBlockLength: number;
   forbidEveningToNextDay: boolean;
+  globalMinOffDays: number;
 }
 
 export type DailyAssignments = Record<NurseId, ShiftCode | null>;
 export type MonthlySchedule = Record<DayOfMonth, DailyAssignments>;
 
 export type ValidationSeverity = 'error' | 'warning';
-
 export type ValidationCode =
   | 'MANDATORY_OFF_VIOLATION'
   | 'DISALLOWED_SHIFT'
@@ -45,7 +42,8 @@ export type ValidationCode =
   | 'NIGHT_RECOVERY_OFF_VIOLATION'
   | 'OFF_RANGE_VIOLATION'
   | 'MONTHLY_NIGHT_LIMIT_VIOLATION'
-  | 'UNNECESSARY_GENERAL_NIGHT_ASSIGNMENT';
+  | 'UNNECESSARY_GENERAL_NIGHT_ASSIGNMENT'
+  | 'HELPER_USED';
 
 export interface ValidationIssue {
   severity: ValidationSeverity;

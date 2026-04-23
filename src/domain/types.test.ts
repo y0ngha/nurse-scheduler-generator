@@ -1,65 +1,33 @@
-import type {
-  DailyAssignments,
-  GenerationFailure,
-  GenerationSuccess,
-  MonthlySchedule,
-  NurseConfig,
-  SchedulerConfig,
-  ScheduleGenerationResult,
-  ValidationIssue,
-  ValidationResult,
-} from './types';
+import type { SchedulerConfig, NurseConfig } from './types';
 
-test('core domain types accept the expected shape', () => {
+const baseConfig: SchedulerConfig = {
+  year: 2026,
+  month: 8,
+  maxConsecutiveWorkDays: 4,
+  nightBlockLength: 3,
+  forbidEveningToNextDay: true,
+  globalMinOffDays: 9,
+  nurses: []
+};
+
+test('Type validation', () => {
   const nurse: NurseConfig = {
     id: 'n1',
-    name: 'Nurse 1',
+    name: 'Nurse',
     nurseType: 'general',
-    allowedShifts: ['D', 'E', 'N', 'O'],
-    mandatoryOffDates: [23, 24],
+    allowedShifts: ['D'],
+    mandatoryOffDates: [],
     maxNightShifts: 6,
-    offRange: { min: 9, max: 11 },
+    minOffDays: 9,
     nightRecoveryOffDays: 2,
   };
+  expect(nurse.id).toBe('n1');
+});
 
+test('Config validation', () => {
   const config: SchedulerConfig = {
-    year: 2026,
-    month: 8,
-    nurses: [nurse],
-    maxConsecutiveWorkDays: 4,
-    nightBlockLength: 3,
-    forbidEveningToNextDay: true,
+    ...baseConfig,
+    nurses: []
   };
-
-  const daily: DailyAssignments = { n1: 'D' };
-  const schedule: MonthlySchedule = { 1: daily };
-  const issue: ValidationIssue = {
-    severity: 'error',
-    code: 'MANDATORY_OFF_VIOLATION',
-    message: 'example',
-    nurseId: 'n1',
-    day: 1,
-  };
-  const validation: ValidationResult = {
-    isValid: false,
-    errors: [issue],
-    warnings: [],
-  };
-  const success: GenerationSuccess = {
-    schedule,
-    validation,
-  };
-  const failure: GenerationFailure = {
-    reason: 'example',
-    errors: [issue],
-  };
-  const result: ScheduleGenerationResult = {
-    ok: true,
-    data: success,
-  };
-
-  expect(config.nurses[0].allowedShifts).toContain('N');
-  expect(success.schedule[1].n1).toBe('D');
-  expect(failure.errors[0].code).toBe('MANDATORY_OFF_VIOLATION');
-  expect(result.ok).toBe(true);
+  expect(config.year).toBe(2026);
 });

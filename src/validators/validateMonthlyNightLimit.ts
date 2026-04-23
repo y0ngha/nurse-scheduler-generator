@@ -5,6 +5,7 @@ export function validateMonthlyNightLimit(schedule: MonthlySchedule, config: Sch
   const issues: ValidationIssue[] = [];
 
   for (const nurse of config.nurses) {
+    if (nurse.id === 'HELPER') continue;
     let nightCount = 0;
     for (const dailyAssignments of Object.values(schedule)) {
       if (dailyAssignments[nurse.id] === 'N') {
@@ -16,7 +17,7 @@ export function validateMonthlyNightLimit(schedule: MonthlySchedule, config: Sch
       issues.push({
         severity: 'error',
         code: 'MONTHLY_NIGHT_LIMIT_VIOLATION',
-        message: `${nurse.name} has ${nightCount} night shifts, which exceeds the limit of ${nurse.maxNightShifts}`,
+        message: `${nurse.name} 간호사의 월간 밤번(N) 횟수(${nightCount}회)가 제한(${nurse.maxNightShifts}회)을 초과했습니다.`,
         nurseId: nurse.id,
       });
     }

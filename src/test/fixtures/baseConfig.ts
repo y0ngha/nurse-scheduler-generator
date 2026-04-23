@@ -1,4 +1,3 @@
-// src/test/fixtures/baseConfig.ts
 import type { SchedulerConfig } from '../../domain/types';
 
 export const baseConfig: SchedulerConfig = {
@@ -7,6 +6,7 @@ export const baseConfig: SchedulerConfig = {
   maxConsecutiveWorkDays: 4,
   nightBlockLength: 3,
   forbidEveningToNextDay: true,
+  globalMinOffDays: 9,
   nurses: [
     {
       id: 'n1',
@@ -15,7 +15,7 @@ export const baseConfig: SchedulerConfig = {
       allowedShifts: ['D', 'E', 'N', 'O'],
       mandatoryOffDates: [23, 24],
       maxNightShifts: 6,
-      offRange: { min: 5, max: 15 },
+      minOffDays: null,
       nightRecoveryOffDays: 2,
     },
     {
@@ -25,7 +25,7 @@ export const baseConfig: SchedulerConfig = {
       allowedShifts: ['D', 'E', 'N', 'O'],
       mandatoryOffDates: [],
       maxNightShifts: 6,
-      offRange: { min: 5, max: 15 },
+      minOffDays: null,
       nightRecoveryOffDays: 2,
     },
     {
@@ -35,7 +35,7 @@ export const baseConfig: SchedulerConfig = {
       allowedShifts: ['N', 'O'],
       mandatoryOffDates: [2, 3],
       maxNightShifts: 16,
-      offRange: null,
+      minOffDays: null,
       nightRecoveryOffDays: 3,
     },
     {
@@ -45,7 +45,7 @@ export const baseConfig: SchedulerConfig = {
       allowedShifts: ['D', 'E', 'N', 'O'],
       mandatoryOffDates: [],
       maxNightShifts: 6,
-      offRange: { min: 5, max: 15 },
+      minOffDays: null,
       nightRecoveryOffDays: 2,
     },
     {
@@ -55,7 +55,7 @@ export const baseConfig: SchedulerConfig = {
       allowedShifts: ['D', 'E', 'N', 'O'],
       mandatoryOffDates: [],
       maxNightShifts: 6,
-      offRange: { min: 5, max: 15 },
+      minOffDays: null,
       nightRecoveryOffDays: 2,
     },
   ],

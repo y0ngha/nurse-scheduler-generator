@@ -15,7 +15,7 @@ export function validateWarnings(schedule: MonthlySchedule, config: SchedulerCon
           issues.push({
             severity: 'warning',
             code: 'UNNECESSARY_GENERAL_NIGHT_ASSIGNMENT',
-            message: `General nurse ${nurse.name} was assigned a night shift on day ${day} while a night specialist was already covering it.`,
+            message: `야간 전담 간호사가 이미 배치된 날(${day}일)에 일반 간호사(${nurse.name})가 추가로 밤번(N) 근무를 수행합니다.`,
             nurseId: nurse.id,
             day,
           });

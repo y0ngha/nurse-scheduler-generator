@@ -10,7 +10,7 @@ export function validateMandatoryOffs(schedule: MonthlySchedule, config: Schedul
         issues.push({
           severity: 'error',
           code: 'MANDATORY_OFF_VIOLATION',
-          message: `${nurse.name} must be off on day ${day}`,
+          message: `${nurse.name} 간호사는 해당 일자에 반드시 휴무해야 합니다.`,
           nurseId: nurse.id,
           day,
         });

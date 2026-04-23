@@ -39,20 +39,12 @@ export function buildReplacementNightBlocks(schedule: MonthlySchedule, config: S
     const candidate = candidates[0];
 
     if (!candidate) {
-      return {
-        ok: false,
-        error: {
-          reason: `No eligible night replacement on day ${day}`,
-          errors: [
-            {
-              severity: 'error',
-              code: 'MISSING_NIGHT_COVERAGE',
-              message: `No eligible general nurse can cover night block starting on day ${day}`,
-              day,
-            },
-          ],
-        },
-      };
+      // 헬퍼 투입: 에러를 반환하지 않고 헬퍼에게 배정
+      Array.from({ length: config.nightBlockLength }, (_, i) => day + i).filter(d => d <= days).forEach((d) => {
+        next[d]['HELPER'] = 'N';
+      });
+      day += config.nightBlockLength - 1;
+      continue;
     }
 
     Array.from({ length: config.nightBlockLength }, (_, i) => day + i).filter(d => d <= days).forEach((d) => {

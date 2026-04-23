@@ -6,9 +6,9 @@ export function validateNightBlocks(schedule: MonthlySchedule, config: Scheduler
   const days = Object.keys(schedule).length;
 
   for (const nurse of config.nurses) {
+    if (nurse.id === 'HELPER') continue;
     for (let day = 1; day <= days; day += 1) {
       if (schedule[day][nurse.id] === 'N') {
-        // Check if this is the start of a sequence
         if (day === 1 || schedule[day - 1][nurse.id] !== 'N') {
           let sequenceLength = 0;
           let currentDay = day;
@@ -17,19 +17,18 @@ export function validateNightBlocks(schedule: MonthlySchedule, config: Scheduler
             currentDay += 1;
           }
 
-          if (sequenceLength !== config.nightBlockLength) {
-            // Only report if it's not truncated by the end of the month
-            if (currentDay <= days) {
-              issues.push({
-                severity: 'error',
-                code: 'NIGHT_BLOCK_VIOLATION',
-                message: `${nurse.name} has an invalid night block length of ${sequenceLength} starting on day ${day}`,
-                nurseId: nurse.id,
-                day,
-              });
-            }
+          // 예외 처리: 월말에 걸쳐 있어서 3일을 채울 수 없는 경우는 오류에서 제외
+          const isEndOfMonth = (day + sequenceLength - 1) === days;
+          
+          if (sequenceLength !== config.nightBlockLength && !isEndOfMonth) {
+            issues.push({
+              severity: 'error',
+              code: 'NIGHT_BLOCK_VIOLATION',
+              message: `${nurse.name} 간호사의 밤번(N) 근무 블록이 ${config.nightBlockLength}일 연속 규정을 위반했습니다. (현재: ${sequenceLength}일)`,
+              nurseId: nurse.id,
+              day,
+            });
           }
-          // Skip the rest of this sequence
           day = currentDay - 1;
         }
       }

@@ -1,12 +1,14 @@
-// src/validators/validateMonthlyOffRange.ts
 import type { MonthlySchedule, SchedulerConfig, ValidationIssue } from '../domain/types';
 
 export function validateMonthlyOffRange(schedule: MonthlySchedule, config: SchedulerConfig): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   for (const nurse of config.nurses) {
-    if (!nurse.offRange) continue;
+    // 헬퍼 및 야간 전담은 휴무 일수 검증에서 제외
+    if (nurse.id === 'HELPER' || nurse.nurseType === 'nightSpecialist') continue;
 
+    const minRequired = nurse.minOffDays ?? config.globalMinOffDays;
+    
     let offCount = 0;
     for (const dailyAssignments of Object.values(schedule)) {
       if (dailyAssignments[nurse.id] === 'O') {
@@ -14,11 +16,11 @@ export function validateMonthlyOffRange(schedule: MonthlySchedule, config: Sched
       }
     }
 
-    if (offCount < nurse.offRange.min || offCount > nurse.offRange.max) {
+    if (offCount < minRequired) {
       issues.push({
         severity: 'error',
         code: 'OFF_RANGE_VIOLATION',
-        message: `${nurse.name} has ${offCount} off days, which is outside the range [${nurse.offRange.min}, ${nurse.offRange.max}]`,
+        message: `${nurse.name} 간호사의 휴무가 ${offCount}일로, 최소 보장 휴무(${minRequired}일)보다 부족합니다.`,
         nurseId: nurse.id,
       });
     }
