@@ -1,7 +1,8 @@
 // src/validators/validateDailyCoverage.ts
 import type { MonthlySchedule, SchedulerConfig, ValidationIssue } from '../domain/types';
 
-export function validateDailyCoverage(schedule: MonthlySchedule, _config: SchedulerConfig): ValidationIssue[] {
+export function validateDailyCoverage(schedule: MonthlySchedule, config: SchedulerConfig): ValidationIssue[] {
+  void config;
   const issues: ValidationIssue[] = [];
 
   for (const [dayText, assignments] of Object.entries(schedule)) {

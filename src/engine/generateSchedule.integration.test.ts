@@ -5,6 +5,9 @@ import { generateSchedule } from './generateSchedule';
 test('generateSchedule succeeds for baseline config', () => {
   const result = generateSchedule(baseConfig);
   expect(result.ok).toBe(true);
+  if (result.ok) {
+    expect(result.data.validation.isValid).toBe(true);
+  }
 });
 
 test('generateSchedule succeeds even for difficult config (using HELPER)', () => {

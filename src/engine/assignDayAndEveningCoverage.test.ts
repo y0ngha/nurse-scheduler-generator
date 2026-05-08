@@ -1,6 +1,7 @@
 import { baseConfig } from '../test/fixtures/baseConfig';
 import { buildSchedule } from '../test/builders/scheduleBuilder';
 import { assignDayAndEveningCoverage } from './assignDayAndEveningCoverage';
+import type { ShiftCode } from '../domain/types';
 
 test('assignDayAndEveningCoverage fills missing D and E each day', () => {
   const schedule = buildSchedule(baseConfig, {}); // Completely empty!
@@ -38,4 +39,45 @@ test('assignDayAndEveningCoverage respects max consecutive work days', () => {
   // n1 has 4 consecutive 'D's. On Day 5, n1 should NOT be assigned a work shift.
   const result = assignDayAndEveningCoverage(schedule, baseConfig);
   expect(['D', 'E', 'N']).not.toContain(result[5].n1);
+});
+
+test('assignDayAndEveningCoverage does not overwrite existing helper night coverage', () => {
+  const schedule = buildSchedule(baseConfig, {
+    1: { HELPER: 'N' },
+  });
+
+  const result = assignDayAndEveningCoverage(schedule, baseConfig);
+
+  expect(result[1].HELPER).toBe('N');
+});
+
+test('assignDayAndEveningCoverage does not create DE for nurses missing a required allowed shift', () => {
+  const restrictedConfig = {
+    ...baseConfig,
+    nurses: baseConfig.nurses.map((nurse) =>
+      nurse.id === 'n1'
+        ? { ...nurse, allowedShifts: ['E', 'O'] as ShiftCode[] }
+        : nurse
+    ),
+  };
+  const schedule = buildSchedule(restrictedConfig, {
+    1: { n1: 'E' },
+  });
+
+  const result = assignDayAndEveningCoverage(schedule, restrictedConfig);
+
+  expect(result[1].n1).toBe('E');
+});
+
+test('assignDayAndEveningCoverage respects future preassigned night blocks when checking consecutive work', () => {
+  const schedule = buildSchedule(baseConfig, {
+    6: { n1: 'E' },
+    8: { n1: 'N' },
+    9: { n1: 'N' },
+    10: { n1: 'N' },
+  });
+
+  const result = assignDayAndEveningCoverage(schedule, baseConfig);
+
+  expect(['D', 'E', 'DE']).not.toContain(result[7].n1);
 });

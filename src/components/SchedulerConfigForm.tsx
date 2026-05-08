@@ -1,5 +1,5 @@
 // src/components/SchedulerConfigForm.tsx
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { SchedulerConfig, NurseConfig } from '../domain/types';
 
 interface Props {
@@ -12,10 +12,6 @@ interface Props {
 
 function MandatoryOffInput({ value, onChange }: { value: number[], onChange: (vals: number[]) => void }) {
   const [text, setText] = useState(value.join(', '));
-
-  useEffect(() => {
-    setText(value.join(', '));
-  }, [value]);
 
   const handleChange = (newText: string) => {
     setText(newText);

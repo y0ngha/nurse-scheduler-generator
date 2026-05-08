@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import * as XLSX from "xlsx";
 import type {
   SchedulerConfig,
@@ -13,11 +13,20 @@ import { ScheduleSummary } from "../components/ScheduleSummary";
 import { ScheduleTable } from "../components/ScheduleTable";
 import { summarizeSchedule } from "../domain/schedule";
 
+const helperNurses: NurseConfig[] = ['HELPER', 'HELPER_2'].map((id, index) => ({
+  id,
+  name: index === 0 ? '외부 헬퍼' : '외부 헬퍼 2',
+  nurseType: 'general',
+  allowedShifts: ['D', 'E', 'N', 'O'],
+  mandatoryOffDates: [],
+  maxNightShifts: Number.MAX_SAFE_INTEGER,
+  minOffDays: null,
+  nightRecoveryOffDays: 0,
+}));
+
 export function SchedulerPage() {
   const [config, setConfig] = useState<SchedulerConfig>(baseConfig);
   const [result, setResult] = useState<ScheduleGenerationResult | null>(null);
-
-  useEffect(() => { setResult(null); }, [config]);
 
   const handleGenerate = () => setResult(generateSchedule(config));
 
@@ -30,8 +39,8 @@ export function SchedulerPage() {
     const hasHelper = summary['HELPER'].totalD + summary['HELPER'].totalE + summary['HELPER'].totalN > 0 ||
                       summary['HELPER_2'].totalD + summary['HELPER_2'].totalE + summary['HELPER_2'].totalN > 0;
     
-    const displayNurses = [...config.nurses];
-    if (hasHelper) displayNurses.push({ id: 'HELPER_TOTAL', name: '외부 헬퍼(합계)' } as any);
+    const displayNurses: Array<Pick<NurseConfig, 'id' | 'name'>> = [...config.nurses];
+    if (hasHelper) displayNurses.push({ id: 'HELPER_TOTAL', name: '외부 헬퍼(합계)' });
 
     const data = displayNurses.map((nurse) => {
       const row: Record<string, string> = { "간호사 이름": nurse.name };
@@ -74,8 +83,10 @@ export function SchedulerPage() {
 
   const getDisplayNurses = () => {
     if (!result || !result.ok) return config.nurses;
-    const helperUsed = Object.values(result.data.schedule).some(d => d['HELPER'] !== 'O' || d['HELPER_2'] !== 'O');
-    return helperUsed ? [...config.nurses, { id: 'HELPER', name: '외부 헬퍼', nurseType: 'general' } as any] : config.nurses;
+    const usedHelpers = helperNurses.filter((helper) =>
+      Object.values(result.data.schedule).some(day => day[helper.id] !== 'O')
+    );
+    return [...config.nurses, ...usedHelpers];
   };
 
   return (
@@ -89,8 +100,15 @@ export function SchedulerPage() {
 
       <section style={{ backgroundColor: "#f8f9fa", padding: "1.5rem", borderRadius: "12px", border: "1px solid #dee2e6" }}>
         <SchedulerConfigForm config={config} onChange={setConfigFull} onAddNurse={addNurse} onRemoveNurse={removeNurse} onUpdateNurse={updateNurse} />
-        <ScheduleActions onGenerate={handleGenerate} onExportExcel={handleExportExcel} canGenerate={true} hasResult={!!(result && result.ok)} />
+        <ScheduleActions onGenerate={handleGenerate} onExportExcel={handleExportExcel} canGenerate={true} hasResult={!!result?.ok} />
       </section>
+
+      {result && !result.ok && (
+        <div style={{ padding: '1rem', backgroundColor: '#fff2f0', color: '#cf1322', borderRadius: '8px', marginTop: '2rem' }}>
+          <strong>검증 위반으로 근무표 생성에 실패했습니다.</strong>
+          <ul>{result.error.errors.map((e, i) => <li key={i}>{e.message}</li>)}</ul>
+        </div>
+      )}
 
       {result?.ok && (
         <div style={{ marginTop: '2rem' }}>

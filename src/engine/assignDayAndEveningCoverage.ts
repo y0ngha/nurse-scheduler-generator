@@ -16,13 +16,36 @@ function getConsecutiveWorkDays(schedule: MonthlySchedule, nurseId: string, upTo
   return count;
 }
 
+function getConsecutiveWorkDaysAfter(schedule: MonthlySchedule, nurseId: string, fromDayExclusive: number): number {
+  let count = 0;
+  const days = Object.keys(schedule).length;
+  for (let day = fromDayExclusive + 1; day <= days; day += 1) {
+    if (isWorkShift(schedule[day][nurseId])) count += 1;
+    else break;
+  }
+  return count;
+}
+
+function wouldRespectConsecutiveWorkLimit(
+  schedule: MonthlySchedule,
+  nurseId: string,
+  day: number,
+  config: SchedulerConfig
+): boolean {
+  const consecutiveDaysIncludingTarget =
+    getConsecutiveWorkDays(schedule, nurseId, day) +
+    1 +
+    getConsecutiveWorkDaysAfter(schedule, nurseId, day);
+
+  return consecutiveDaysIncludingTarget <= config.maxConsecutiveWorkDays;
+}
+
 function canAssign(
   schedule: MonthlySchedule, 
   nurse: NurseConfig, 
   day: number, 
   targetShift: 'D' | 'E', 
-  config: SchedulerConfig,
-  _currentSummary: Record<string, any>
+  config: SchedulerConfig
 ): boolean {
   if (!nurse.allowedShifts.includes(targetShift)) return false;
   if (nurse.mandatoryOffDates.includes(day)) return false;
@@ -37,7 +60,7 @@ function canAssign(
     if(isWorkShift(schedule[d][nurse.id])) workCount++;
   }
   if (workCount >= maxWork) return false;
-  if (getConsecutiveWorkDays(schedule, nurse.id, day) >= config.maxConsecutiveWorkDays) return false;
+  if (!wouldRespectConsecutiveWorkLimit(schedule, nurse.id, day, config)) return false;
 
   if (targetShift === 'D' && day > 1) {
     const prev = schedule[day - 1][nurse.id];
@@ -45,6 +68,31 @@ function canAssign(
   }
 
   return true;
+}
+
+function canUpgradeToDouble(
+  schedule: MonthlySchedule,
+  nurse: NurseConfig,
+  day: number,
+  missingShift: 'D' | 'E',
+  config: SchedulerConfig
+): boolean {
+  if (!nurse.allowedShifts.includes(missingShift)) return false;
+  if (!wouldRespectConsecutiveWorkLimit(schedule, nurse.id, day, config)) return false;
+
+  if (missingShift === 'D' && day > 1) {
+    const prev = schedule[day - 1][nurse.id];
+    if (prev === 'E' || prev === 'DE') return false;
+  }
+
+  return true;
+}
+
+function assignHelperShift(schedule: MonthlySchedule, day: number, shift: 'D' | 'E'): void {
+  const helperId = ['HELPER', 'HELPER_2'].find((id) => schedule[day][id] === null);
+  if (helperId) {
+    schedule[day][helperId] = shift;
+  }
 }
 
 export function assignDayAndEveningCoverage(schedule: MonthlySchedule, config: SchedulerConfig): MonthlySchedule {
@@ -56,7 +104,7 @@ export function assignDayAndEveningCoverage(schedule: MonthlySchedule, config: S
     if (!Object.values(next[day]).some(s => s === 'D' || s === 'DE')) {
       const summary = summarizeSchedule(next, config.nurses);
       const candidates = generalNurses
-        .filter(n => next[day][n.id] === null && canAssign(next, n, day, 'D', config, summary))
+        .filter(n => next[day][n.id] === null && canAssign(next, n, day, 'D', config))
         .sort((a, b) => (summary[a.id].totalD + summary[a.id].totalE + summary[a.id].totalN) - (summary[b.id].totalD + summary[b.id].totalE + summary[b.id].totalN));
 
       if (candidates.length > 0) {
@@ -67,7 +115,7 @@ export function assignDayAndEveningCoverage(schedule: MonthlySchedule, config: S
     if (!Object.values(next[day]).some(s => s === 'E' || s === 'DE')) {
       const summary = summarizeSchedule(next, config.nurses);
       const candidates = generalNurses
-        .filter(n => next[day][n.id] === null && canAssign(next, n, day, 'E', config, summary))
+        .filter(n => next[day][n.id] === null && canAssign(next, n, day, 'E', config))
         .sort((a, b) => (summary[a.id].totalD + summary[a.id].totalE + summary[a.id].totalN) - (summary[b.id].totalD + summary[b.id].totalE + summary[b.id].totalN));
 
       if (candidates.length > 0) {
@@ -76,20 +124,19 @@ export function assignDayAndEveningCoverage(schedule: MonthlySchedule, config: S
     }
 
     if (!Object.values(next[day]).some(s => s === 'D' || s === 'DE')) {
-        const eNurseId = Object.keys(next[day]).find(id => next[day][id] === 'E' && id !== 'HELPER' && id !== 'HELPER_2');
-        if (eNurseId) next[day][eNurseId] = 'DE';
+        const eNurse = generalNurses.find(nurse => next[day][nurse.id] === 'E' && canUpgradeToDouble(next, nurse, day, 'D', config));
+        if (eNurse) next[day][eNurse.id] = 'DE';
     }
     if (!Object.values(next[day]).some(s => s === 'E' || s === 'DE')) {
-        const dNurseId = Object.keys(next[day]).find(id => next[day][id] === 'D' && id !== 'HELPER' && id !== 'HELPER_2');
-        if (dNurseId) next[day][dNurseId] = 'DE';
+        const dNurse = generalNurses.find(nurse => next[day][nurse.id] === 'D' && canUpgradeToDouble(next, nurse, day, 'E', config));
+        if (dNurse) next[day][dNurse.id] = 'DE';
     }
 
     if (!Object.values(next[day]).some(s => s === 'D' || s === 'DE')) {
-        next[day]['HELPER'] = 'D';
+        assignHelperShift(next, day, 'D');
     }
     if (!Object.values(next[day]).some(s => s === 'E' || s === 'DE')) {
-        if (next[day]['HELPER'] === 'D') next[day]['HELPER_2'] = 'E';
-        else next[day]['HELPER'] = 'E';
+        assignHelperShift(next, day, 'E');
     }
   }
 

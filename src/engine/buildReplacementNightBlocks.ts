@@ -1,6 +1,19 @@
 // src/engine/buildReplacementNightBlocks.ts
 import { cloneSchedule } from '../domain/schedule';
-import type { MonthlySchedule, SchedulerConfig, ScheduleGenerationResult } from '../domain/types';
+import type { MonthlySchedule, SchedulerConfig, ScheduleGenerationResult, ShiftCode } from '../domain/types';
+
+function isWorkShift(shift: ShiftCode | null): boolean {
+  return shift === 'D' || shift === 'E' || shift === 'N' || shift === 'DE';
+}
+
+function getConsecutiveWorkDays(schedule: MonthlySchedule, nurseId: string, upToDayExclusive: number): number {
+  let count = 0;
+  for (let day = upToDayExclusive - 1; day >= 1; day -= 1) {
+    if (isWorkShift(schedule[day][nurseId])) count += 1;
+    else break;
+  }
+  return count;
+}
 
 export function buildReplacementNightBlocks(schedule: MonthlySchedule, config: SchedulerConfig): ScheduleGenerationResult {
   const next = cloneSchedule(schedule);
@@ -27,7 +40,17 @@ export function buildReplacementNightBlocks(schedule: MonthlySchedule, config: S
           return false;
         }
 
-        const blockDays = Array.from({ length: config.nightBlockLength }, (_, i) => day + i).filter(d => d <= days);
+        const blockDays = Array.from({ length: config.nightBlockLength }, (_, i) => day + i);
+        if (blockDays.some((d) => d > days)) {
+          return false;
+        }
+        if (specialist && blockDays.some((d) => next[d][specialist.id] === 'N')) {
+          return false;
+        }
+        if (getConsecutiveWorkDays(next, nurse.id, day) + config.nightBlockLength > config.maxConsecutiveWorkDays) {
+          return false;
+        }
+
         const recoveryDays = Array.from({ length: nurse.nightRecoveryOffDays }, (_, i) => day + config.nightBlockLength + i).filter(d => d <= days);
 
         return blockDays.every((d) => next[d][nurse.id] === null) &&
@@ -39,7 +62,6 @@ export function buildReplacementNightBlocks(schedule: MonthlySchedule, config: S
     const candidate = candidates[0];
 
     if (!candidate) {
-      // 헬퍼 투입: 에러를 반환하지 않고 헬퍼에게 배정
       Array.from({ length: config.nightBlockLength }, (_, i) => day + i).filter(d => d <= days).forEach((d) => {
         next[d]['HELPER'] = 'N';
       });
@@ -47,7 +69,7 @@ export function buildReplacementNightBlocks(schedule: MonthlySchedule, config: S
       continue;
     }
 
-    Array.from({ length: config.nightBlockLength }, (_, i) => day + i).filter(d => d <= days).forEach((d) => {
+    Array.from({ length: config.nightBlockLength }, (_, i) => day + i).forEach((d) => {
       next[d][candidate.id] = 'N';
     });
 

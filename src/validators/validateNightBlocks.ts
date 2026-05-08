@@ -17,10 +17,7 @@ export function validateNightBlocks(schedule: MonthlySchedule, config: Scheduler
             currentDay += 1;
           }
 
-          // 예외 처리: 월말에 걸쳐 있어서 3일을 채울 수 없는 경우는 오류에서 제외
-          const isEndOfMonth = (day + sequenceLength - 1) === days;
-          
-          if (sequenceLength !== config.nightBlockLength && !isEndOfMonth) {
+          if (sequenceLength !== config.nightBlockLength) {
             issues.push({
               severity: 'error',
               code: 'NIGHT_BLOCK_VIOLATION',

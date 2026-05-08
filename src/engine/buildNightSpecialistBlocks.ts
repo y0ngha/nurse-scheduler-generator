@@ -15,11 +15,18 @@ export function buildNightSpecialistBlocks(schedule: MonthlySchedule, config: Sc
   const days = Object.keys(next).length;
 
   for (let start = 1; start <= days && placedNights < target; start += 1) {
-    const blockDays = [start, start + 1, start + 2].filter(d => d <= days);
+    const blockDays = Array.from({ length: config.nightBlockLength }, (_, index) => start + index);
+    if (blockDays.some((day) => day > days)) {
+      continue;
+    }
+    if (placedNights + blockDays.length > target) {
+      continue;
+    }
+
     const recoveryDays = [
-      start + 3,
-      start + 4,
-      start + 5,
+      start + config.nightBlockLength,
+      start + config.nightBlockLength + 1,
+      start + config.nightBlockLength + 2,
     ].slice(0, specialist.nightRecoveryOffDays).filter(d => d <= days);
 
     const mandatoryCollision = blockDays.some((day) => specialist.mandatoryOffDates.includes(day));
